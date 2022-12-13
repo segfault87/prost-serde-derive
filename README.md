@@ -8,13 +8,17 @@ Currently [Prost] does not support JSON serialization-deserialization. Although 
 
 ## Usage
 
-In order to use, you need a [fork](https://github.com/segfault87/prost/tree/create-enum-from-str-name) of `prost-build` which implements required methods for Prost enumerations for now. If you're using [tonic_build](https://github.com/hyperium/tonic), there is a [fork](https://github.com/segfault87/tonic/tree/create-enum-from-str-name) as well.
+In order to use, you need a Git master branch of `prost-build` which implements required methods for Prost enumerations for now. If you're using [tonic_build], there is a [fork](https://github.com/segfault87/tonic/tree/create-enum-from-str-name) for using Git version of `prost-build`.
+
+To see it in action, see `example` crate.
 
 ## TODO
 
-* Serialization
+* Documentation
+* Serialization support
 * Drop-in compatibility with [Serde](https://serde.rs)
 * Unit tests
 
 [Serde]: https://serde.rs
 [Prost]: https://github.com/tokio-rs/prost
+[tonic_build]: https://github.com/hyperium/tonic
