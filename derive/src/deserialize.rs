@@ -7,7 +7,7 @@ use syn::{parse_quote, Data, DataStruct, Error, Fields, FieldsNamed, Path};
 use crate::{
     attr::EnumerationTypeAttr,
     context::Context,
-    util::{deraw, wrap_block},
+    util::{deraw, is_option, wrap_block},
 };
 
 struct NamedStructDeserializer<'a> {
@@ -114,6 +114,7 @@ impl<'a> NamedStructDeserializer<'a> {
         for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
             let field_ident = field.ident.as_ref().unwrap();
             let field_name = field_ident.to_string();
+            let is_optional = is_option(&field.ty);
             var_decls.push(quote! {
                 let mut #field_ident = None;
             });
@@ -146,9 +147,11 @@ impl<'a> NamedStructDeserializer<'a> {
                     #field_ident = Some(#value_getter_expr);
                 }
             });
-            var_narrowings.push(quote! {
-                let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
-            });
+            if !is_optional {
+                var_narrowings.push(quote! {
+                    let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
+                });
+            }
             var_fields.push(field_ident);
         }
 

@@ -8,7 +8,8 @@ fn main() {
         "name": "John Doe",
         "email": "johndoe@example.com",
         "activation": "ACTIVATION_REQUESTED",
-        "type": "USER_TYPE_REGULAR"
+        "type": "USER_TYPE_REGULAR",
+        "homepage": "https://www.johndoe.com"
     }"#;
     let u2 = r#"{
         "id": 2,

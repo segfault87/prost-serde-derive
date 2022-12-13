@@ -20,4 +20,5 @@ message User {
     string email = 3;
     Activation activation = 4;
     UserType type = 5;
+    optional string homepage = 6;
 }
