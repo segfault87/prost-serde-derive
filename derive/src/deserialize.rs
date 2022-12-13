@@ -7,7 +7,7 @@ use syn::{parse_quote, Data, DataStruct, Error, Fields, FieldsNamed, Path};
 use crate::{
     attr::EnumerationTypeAttr,
     context::Context,
-    util::wrap_block,
+    util::{deraw, wrap_block},
 };
 
 struct NamedStructDeserializer<'a> {
@@ -42,7 +42,7 @@ impl<'a> NamedStructDeserializer<'a> {
 
         let variants = self
             .get_field_idents()
-            .map(|v| Ident::new(&v.to_string().to_case(Case::Pascal), Span::call_site()))
+            .map(|v| Ident::new(&deraw(v).to_case(Case::Pascal), Span::call_site()))
             .collect::<Vec<_>>();
         let field_names =
             itertools::join(self.get_field_idents().map(|v| format!("`{}`", v)), " or ");
@@ -51,7 +51,7 @@ impl<'a> NamedStructDeserializer<'a> {
         let ident_visitor = Ident::new(&(ident.to_string() + "Visitor"), Span::call_site());
 
         let pat_fields = iter::zip(
-            self.get_field_idents().map(Ident::to_string),
+            self.get_field_idents().map(deraw),
             variants.iter(),
         )
         .map(|(name, variant)| {

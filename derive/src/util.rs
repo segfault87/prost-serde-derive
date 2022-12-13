@@ -16,3 +16,7 @@ pub fn wrap_block(code: TokenStream) -> TokenStream {
         };
     }
 }
+
+pub fn deraw(ident: &Ident) -> String {
+    ident.to_string().trim_start_matches("r#").to_owned()
+}
