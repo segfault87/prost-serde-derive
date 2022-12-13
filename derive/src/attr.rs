@@ -19,8 +19,7 @@ impl EnumerationTypeAttr {
             let meta_list = match meta {
                 Ok(Meta::List(list)) => list,
                 Ok(_) => {
-                    context.error_spanned_by(attr, "");
-                    return Err(());
+                    continue;
                 }
                 Err(e) => {
                     context.syn_error(e);
