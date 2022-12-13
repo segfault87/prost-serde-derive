@@ -4,6 +4,7 @@ extern crate quote;
 mod attr;
 mod context;
 mod deserialize;
+mod util;
 
 use crate::deserialize::expand_deserialize;
 

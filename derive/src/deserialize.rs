@@ -4,7 +4,11 @@ use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use syn::{parse_quote, Data, DataStruct, Error, Fields, FieldsNamed, Path};
 
-use crate::{attr::EnumerationTypeAttr, context::Context};
+use crate::{
+    attr::EnumerationTypeAttr,
+    context::Context,
+    util::wrap_block,
+};
 
 struct NamedStructDeserializer<'a> {
     context: &'a Context,
@@ -227,9 +231,9 @@ fn expand_struct(
 pub fn expand_deserialize(ident: &Ident, data: &Data) -> Result<TokenStream, Vec<Error>> {
     let context = Context::new();
 
-    let serde: Path = parse_quote! { ::_serde };
+    let serde: Path = parse_quote! { _serde };
 
-    let inner = match data {
+    let deserialization_block = match data {
         Data::Struct(d) => expand_struct(&context, &serde, ident, d),
         Data::Enum(d) => {
             context.error_spanned_by(d.enum_token, "Not implemented");
@@ -247,17 +251,17 @@ pub fn expand_deserialize(ident: &Ident, data: &Data) -> Result<TokenStream, Vec
 
     context.check()?;
 
-    Ok(quote! {
-        extern crate serde as _serde;
-
+    let impl_body = quote! {
         impl<'de> #serde::Deserialize<'de> for #ident {
 
             fn deserialize<D>(deserializer: D) -> Result<#ident, D::Error>
             where D: #serde::Deserializer<'de>,
             {
-                #inner
+                #deserialization_block
             }
 
         }
-    })
+    };
+
+    Ok(wrap_block(impl_body))
 }

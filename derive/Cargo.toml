@@ -1,5 +1,5 @@
 [package]
-name = "prost_serde_derive"
+name = "prost-serde-derive"
 version = "0.0.1"
 edition = "2021"
 
