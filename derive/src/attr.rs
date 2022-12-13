@@ -1,4 +1,5 @@
-use syn::{Attribute, Meta, NestedMeta, Path};
+use proc_macro2::Span;
+use syn::{Attribute, Ident, Lit, Meta, NestedMeta, Path};
 
 use crate::context::Context;
 
@@ -8,6 +9,9 @@ pub struct EnumerationTypeAttr {
 
 impl EnumerationTypeAttr {
     pub fn from_ast(context: &Context, attrs: &[Attribute]) -> Result<Option<Self>, ()> {
+        let prost = Ident::new("prost", Span::call_site());
+        let enumeration = Ident::new("enumeration", Span::call_site());
+
         let mut found = None;
         for attr in attrs.iter() {
             let meta = attr.parse_meta();
@@ -24,35 +28,37 @@ impl EnumerationTypeAttr {
                 }
             };
 
-            if meta_list.path.get_ident().map(ToString::to_string)
-                == Some("enumeration".to_string())
-            {
+            if meta_list.path.is_ident(&prost) {
                 let nested = &meta_list.nested;
-                match nested.len() {
-                    1 => {}
-                    _ => {
-                        context.error_spanned_by(nested, "should be #[enumeration(some::Type)]");
-                        return Err(());
+                for nested_meta in nested.iter() {
+                    if let NestedMeta::Meta(Meta::NameValue(nv)) = nested_meta {
+                        if nv.path.is_ident(&enumeration) {
+                            match &nv.lit {
+                                Lit::Str(s) => {
+                                    if found.is_some() {
+                                        context.error_spanned_by(
+                                            nv,
+                                            "Multiple `enumeration` attributes are not allowed.",
+                                        );
+                                        return Err(());
+                                    }
+                                    let path = s.value();
+                                    found = Some(EnumerationTypeAttr {
+                                        typ: syn::parse_str(&path).unwrap(),
+                                    });
+                                    break;
+                                }
+                                _ => {
+                                    context.error_spanned_by(
+                                        nv,
+                                        "`enumeration` attribute should be in string literal.",
+                                    );
+                                    return Err(());
+                                }
+                            }
+                        }
                     }
                 }
-
-                if found.is_some() {
-                    context.error_spanned_by(
-                        nested,
-                        "multiple #[enumeration] attributes are not allowed",
-                    );
-                    return Err(());
-                }
-
-                let path = match nested.first().unwrap() {
-                    NestedMeta::Meta(Meta::Path(p)) => p,
-                    _ => {
-                        context.error_spanned_by(nested, "should be #[enumeration(some::Type)]");
-                        return Err(());
-                    }
-                };
-
-                found = Some(EnumerationTypeAttr { typ: path.clone() });
             }
         }
 

@@ -50,15 +50,13 @@ impl<'a> NamedStructDeserializer<'a> {
         let ident = Ident::new("Field", Span::call_site());
         let ident_visitor = Ident::new(&(ident.to_string() + "Visitor"), Span::call_site());
 
-        let pat_fields = iter::zip(
-            self.get_field_idents().map(deraw),
-            variants.iter(),
-        )
-        .map(|(name, variant)| {
-            quote! {
-                #name => Ok(#ident::#variant)
-            }
-        });
+        let pat_fields = iter::zip(self.get_field_idents().map(deraw), variants.iter()).map(
+            |(name, variant)| {
+                quote! {
+                    #name => Ok(#ident::#variant)
+                }
+            },
+        );
 
         let expr = quote! {
             enum #ident {

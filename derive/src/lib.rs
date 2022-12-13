@@ -16,7 +16,7 @@ fn to_compile_errors(errors: Vec<syn::Error>) -> proc_macro2::TokenStream {
     quote!(#(#compile_errors)*)
 }
 
-#[proc_macro_derive(Deserialize, attributes(enumeration))]
+#[proc_macro_derive(Deserialize, attributes(prost))]
 pub fn derive_deserialize(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
