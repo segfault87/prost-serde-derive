@@ -5,9 +5,9 @@ use proc_macro2::{Ident, Span, TokenStream};
 use syn::{parse_quote, Data, DataStruct, Error, Fields, FieldsNamed, Path};
 
 use crate::{
-    attr::EnumerationTypeAttr,
+    attr::{FieldModifier, ProstAttr, ProtobufType},
     context::Context,
-    util::{deraw, is_option, wrap_block},
+    util::{deraw, wrap_block},
 };
 
 struct NamedStructDeserializer<'a> {
@@ -112,30 +112,84 @@ impl<'a> NamedStructDeserializer<'a> {
         let mut var_fields = vec![];
 
         for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
+            let prost_attr = ProstAttr::from_ast(self.context, &field.attrs)?;
+
             let field_ident = field.ident.as_ref().unwrap();
             let field_name = field_ident.to_string();
-            let is_optional = is_option(&field.ty);
-            var_decls.push(quote! {
-                let mut #field_ident = None;
-            });
+            var_decls.push(quote! { let mut #field_ident = None; });
 
-            let enum_attr = EnumerationTypeAttr::from_ast(self.context, &field.attrs)?;
-
-            let value_getter_expr = match enum_attr {
-                Some(enum_attr) => {
-                    let path = &enum_attr.typ;
-                    quote! {
-                        {
-                            let string_value: String = map.next_value()?;
-                            match #path::from_str_name(&string_value) {
-                                Some(v) => v as i32,
-                                None => return Err(#serde::de::Error::unknown_variant(&string_value, &[])),
+            let value_getter_expr = match prost_attr.ty {
+                ProtobufType::Enumeration(path) => {
+                    if let FieldModifier::Repeated = prost_attr.modifier {
+                        quote! {
+                            {
+                                let values = map.next_value::<Vec<String>>()?;
+                                let mut result = vec![];
+                                for value in values.iter() {
+                                    match #path::from_str_name(&value) {
+                                        Some(v) => {
+                                            result.push(v as i32);
+                                        }
+                                        None => {
+                                            return Err(#serde::de::Error::unknown_variant(&value, &[]));
+                                        }
+                                    }
+                                }
+                                Some(result)
+                            }
+                        }
+                    } else {
+                        quote! {
+                            {
+                                let string_value = map.next_value::<String>()?;
+                                match #path::from_str_name(&string_value) {
+                                    Some(v) => Some(v as i32),
+                                    None => return Err(#serde::de::Error::unknown_variant(&string_value, &[])),
+                                }
                             }
                         }
                     }
                 }
-                None => quote! {
-                    map.next_value()?
+                ProtobufType::Bytes(_) => {
+                    if let FieldModifier::Repeated = prost_attr.modifier {
+                        quote! {
+                            {
+                                extern crate base64 as _base64;
+                                let values = map.next_value::<Vec<String>>()?;
+                                let mut result = vec![];
+                                for value in values.iter() {
+                                    match _base64::decode(value) {
+                                        Ok(v) => {
+                                            result.push(v.into());
+                                        },
+                                        Err(_) => {
+                                            return Err(
+                                                #serde::de::Error::invalid_value(
+                                                    #serde::de::Unexpected::Str(value),
+                                                    &"A base64 string",
+                                                ),
+                                            );
+                                        }
+                                    }
+                                }
+                                Some(result)
+                            }
+                        }
+                    } else {
+                        quote! {
+                            {
+                                extern crate base64 as _base64;
+                                let value = map.next_value::<String>()?;
+                                match _base64::decode(&value) {
+                                    Ok(v) => Some(v.into()),
+                                    Err(_) => return Err(#serde::de::Error::invalid_value(#serde::de::Unexpected::Str(&value), &"A base64 string")),
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => quote! {
+                    Some(map.next_value()?)
                 },
             };
 
@@ -144,13 +198,21 @@ impl<'a> NamedStructDeserializer<'a> {
                     if #field_ident.is_some() {
                         return Err(#serde::de::Error::duplicate_field(#field_name));
                     }
-                    #field_ident = Some(#value_getter_expr);
+                    #field_ident = #value_getter_expr;
                 }
             });
-            if !is_optional {
-                var_narrowings.push(quote! {
-                    let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
-                });
+            match prost_attr.modifier {
+                FieldModifier::Repeated => {
+                    var_narrowings.push(quote! {
+                        let #field_ident = #field_ident.unwrap_or(vec![]);
+                    });
+                }
+                FieldModifier::None => {
+                    var_narrowings.push(quote! {
+                        let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
+                    });
+                }
+                _ => {}
             }
             var_fields.push(field_ident);
         }

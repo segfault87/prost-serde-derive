@@ -1,10 +1,13 @@
 fn main() {
+    let mut config = prost_build::Config::new();
+    config.bytes(["testproto.User.api_keys"]);
+
     tonic_build::configure()
         .out_dir("src")
         .type_attribute(
             "testproto.User",
             "#[derive(prost_serde_derive::Deserialize)]",
         )
-        .compile(&["proto/test.proto"], &["proto"])
+        .compile_with_config(config, &["proto/test.proto"], &["proto"])
         .unwrap();
 }

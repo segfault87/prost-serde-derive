@@ -14,12 +14,21 @@ enum UserType {
     USER_TYPE_ADMIN = 1;
 }
 
+enum UserPermission {
+    USER_PERMISSION_READ_POSTS = 0;
+    USER_PERMISSION_WRITE_POSTS = 1;
+    USER_PERMISSION_UPDATE_POSTS = 2;
+    USER_PERMISSION_DELETE_POSTS = 3;
+}
+
 message User {
     int32 id = 1;
     string name = 2;
     string email = 3;
-    Activation activation = 4;
-    UserType type = 5;
-    // This is optional
-    optional string homepage = 6;
+    bytes hashed_password = 4;
+    Activation activation = 5;
+    UserType type = 6;
+    repeated bytes api_keys = 7;
+    repeated UserPermission permissions = 8;
+    optional string homepage = 9;
 }
