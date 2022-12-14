@@ -16,21 +16,11 @@ impl DeriveMeta {
         let ident_use_default_for_missing_fields =
             Ident::new("use_default_for_missing_fields", Span::call_site());
 
-        let mut found = None;
-
         let mut omit_type_errors = false;
         let mut use_default_for_missing_fields = false;
 
         for attr in attributes.iter() {
             if attr.path.is_ident(&ident) {
-                if found.is_some() {
-                    context.error_spanned_by(
-                        attr,
-                        "Only one #[prost_serde_derive()] statement is allowed.",
-                    );
-                    return Err(());
-                }
-
                 let meta = attr.parse_meta().unwrap();
                 match meta {
                     Meta::List(list) => {
@@ -58,15 +48,13 @@ impl DeriveMeta {
                         return Err(());
                     }
                 }
-
-                found = Some(DeriveMeta {
-                    omit_type_errors,
-                    use_default_for_missing_fields,
-                })
             }
         }
 
-        Ok(found.unwrap_or_default())
+        Ok(DeriveMeta {
+            omit_type_errors,
+            use_default_for_missing_fields,
+        })
     }
 }
 
