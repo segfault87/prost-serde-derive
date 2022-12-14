@@ -124,7 +124,7 @@ impl<'a> NamedStructDeserializer<'a> {
                 None => quote! { map.next_value() },
             };
 
-            if !omit_type_errors || default_value.is_some() {
+            if omit_type_errors && default_value.is_some() {
                 let default_value = default_value.as_ref().unwrap();
                 quote! {
                     {
