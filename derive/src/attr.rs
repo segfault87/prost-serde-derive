@@ -6,16 +6,19 @@ use crate::context::Context;
 #[derive(Default)]
 pub struct DeriveMeta {
     pub omit_type_errors: bool,
+    pub use_default_for_missing_fields: bool,
 }
 
 impl DeriveMeta {
     pub fn from_ast(context: &Context, attributes: &[Attribute]) -> Result<DeriveMeta, ()> {
         let ident = Ident::new("prost_serde_derive", Span::call_site());
         let ident_omit_type_errors = Ident::new("omit_type_errors", Span::call_site());
+        let ident_use_default_for_missing_fields = Ident::new("use_default_for_missing_fields", Span::call_site());
 
         let mut found = None;
 
         let mut omit_type_errors = false;
+        let mut use_default_for_missing_fields = false;
 
         for attr in attributes.iter() {
             if attr.path.is_ident(&ident) {
@@ -35,6 +38,8 @@ impl DeriveMeta {
                                 NestedMeta::Meta(Meta::Path(p)) => {
                                     if p.is_ident(&ident_omit_type_errors) {
                                         omit_type_errors = true;
+                                    } else if p.is_ident(&ident_use_default_for_missing_fields) {
+                                        use_default_for_missing_fields = true;
                                     } else {
                                         context.error_spanned_by(p, "unrecognized option.");
                                         return Err(());
@@ -53,7 +58,7 @@ impl DeriveMeta {
                     }
                 }
 
-                found = Some(DeriveMeta { omit_type_errors })
+                found = Some(DeriveMeta { omit_type_errors, use_default_for_missing_fields })
             }
         }
 

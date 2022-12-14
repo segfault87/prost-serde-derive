@@ -140,6 +140,7 @@ impl<'a> NamedStructDeserializer<'a> {
         }
 
         let omit_type_errors = self.meta.omit_type_errors;
+        let use_default_for_missing_fields = self.meta.use_default_for_missing_fields;
 
         for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
             let prost_attr = ProstAttr::from_ast(self.context, &field.attrs)?;
@@ -263,9 +264,16 @@ impl<'a> NamedStructDeserializer<'a> {
                     });
                 }
                 FieldModifier::None => {
-                    var_narrowings.push(quote! {
-                        let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
-                    });
+                    if use_default_for_missing_fields && default_value.is_some() {
+                        let default = default_value.as_ref().unwrap();
+                        var_narrowings.push(quote! {
+                            let #field_ident = #field_ident.unwrap_or(#default);
+                        })
+                    } else {
+                        var_narrowings.push(quote! {
+                            let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
+                        });
+                    }
                 }
                 _ => {}
             }

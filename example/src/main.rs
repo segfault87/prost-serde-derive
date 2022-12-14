@@ -24,7 +24,6 @@ fn main() {
         "permissions": ["USER_PERMISSION_READ_POSTS", "USER_PERMISSION_WRITE_POSTS"]
     }"#;
     let u3 = r#"{
-        "id": 2,
         "name": "Alan Smithee",
         "email": "alansmithee@example.com",
         "hashed_password": 5,
@@ -32,8 +31,6 @@ fn main() {
         "type": "USER_TYPE_REGULAR",
         "permissions": ["USER_PERMISSION_UPDATE_POSTS"]
     }"#;
-
-    println!("{}", u1);
 
     println!("{:#?}", serde_json::from_str::<User>(u1));
     println!("{:#?}", serde_json::from_str::<User>(u2));
