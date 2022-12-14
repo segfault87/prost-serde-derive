@@ -6,7 +6,7 @@ fn main() {
         .out_dir("src")
         .type_attribute(
             "testproto.User",
-            "#[derive(prost_serde_derive::Deserialize)]\n#[prost_serde_derive(omit_type_errors, use_default_value_for_missing_fields)]",
+            "#[derive(prost_serde_derive::Deserialize)]\n#[prost_serde_derive(omit_type_errors, use_default_for_missing_fields)]",
         )
         .compile_with_config(config, &["proto/test.proto"], &["proto"])
         .unwrap();

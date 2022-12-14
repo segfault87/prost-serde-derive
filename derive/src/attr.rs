@@ -1,5 +1,5 @@
-use proc_macro2::Span;
-use syn::{parse_quote, Attribute, Expr, Ident, Lit, Meta, NestedMeta, Path};
+use proc_macro2::{Span, TokenStream};
+use syn::{Attribute, Ident, Lit, Meta, NestedMeta, Path};
 
 use crate::context::Context;
 
@@ -13,7 +13,8 @@ impl DeriveMeta {
     pub fn from_ast(context: &Context, attributes: &[Attribute]) -> Result<DeriveMeta, ()> {
         let ident = Ident::new("prost_serde_derive", Span::call_site());
         let ident_omit_type_errors = Ident::new("omit_type_errors", Span::call_site());
-        let ident_use_default_for_missing_fields = Ident::new("use_default_for_missing_fields", Span::call_site());
+        let ident_use_default_for_missing_fields =
+            Ident::new("use_default_for_missing_fields", Span::call_site());
 
         let mut found = None;
 
@@ -58,7 +59,10 @@ impl DeriveMeta {
                     }
                 }
 
-                found = Some(DeriveMeta { omit_type_errors, use_default_for_missing_fields })
+                found = Some(DeriveMeta {
+                    omit_type_errors,
+                    use_default_for_missing_fields,
+                })
             }
         }
 
@@ -288,13 +292,13 @@ impl ProstAttr {
         }
     }
 
-    pub fn get_default_value(&self) -> Option<Expr> {
+    pub fn get_default_value(&self) -> TokenStream {
         match self.modifier {
-            FieldModifier::None => match self.ty {
-                ProtobufType::Enumeration(_) => None,
-                _ => Some(parse_quote! { Default::default() }),
+            FieldModifier::None => match &self.ty {
+                ProtobufType::Enumeration(p) => quote! { #p::default() as i32 },
+                _ => quote! { Default::default() },
             },
-            _ => Some(parse_quote! { Default::default() }),
+            _ => quote! { Default::default() },
         }
     }
 }
