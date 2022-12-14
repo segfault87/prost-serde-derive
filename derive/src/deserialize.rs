@@ -2,16 +2,17 @@ use std::iter;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
-use syn::{parse_quote, Data, DataStruct, Error, Fields, FieldsNamed, Path};
+use syn::{parse_quote, Data, DataStruct, DeriveInput, Error, Expr, Fields, FieldsNamed, Path};
 
 use crate::{
-    attr::{FieldModifier, ProstAttr, ProtobufType},
+    attr::{DeriveMeta, FieldModifier, ProstAttr, ProtobufType},
     context::Context,
     util::{deraw, wrap_block},
 };
 
 struct NamedStructDeserializer<'a> {
     context: &'a Context,
+    meta: &'a DeriveMeta,
     serde: &'a Path,
     ident: &'a Ident,
     fields: &'a FieldsNamed,
@@ -20,12 +21,14 @@ struct NamedStructDeserializer<'a> {
 impl<'a> NamedStructDeserializer<'a> {
     pub fn new(
         context: &'a Context,
+        meta: &'a DeriveMeta,
         serde: &'a Path,
         ident: &'a Ident,
         fields: &'a FieldsNamed,
     ) -> Self {
         Self {
             context,
+            meta,
             serde,
             ident,
             fields,
@@ -111,8 +114,37 @@ impl<'a> NamedStructDeserializer<'a> {
         let mut var_narrowings = vec![];
         let mut var_fields = vec![];
 
+        fn next_value_getter(
+            omit_type_errors: bool,
+            type_sig: Option<TokenStream>,
+            default_value: &Option<Expr>,
+        ) -> TokenStream {
+            let expr = match type_sig {
+                Some(v) => quote! { map.next_value::<#v>() },
+                None => quote! { map.next_value() },
+            };
+
+            if !omit_type_errors || default_value.is_some() {
+                let default_value = default_value.as_ref().unwrap();
+                quote! {
+                    {
+                        match #expr {
+                            Ok(v) => v,
+                            Err(_) => #default_value
+                        }
+                    }
+                }
+            } else {
+                quote! { #expr? }
+            }
+        }
+
+        let omit_type_errors = self.meta.omit_type_errors;
+
         for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
             let prost_attr = ProstAttr::from_ast(self.context, &field.attrs)?;
+
+            let default_value = prost_attr.get_default_value();
 
             let field_ident = field.ident.as_ref().unwrap();
             let field_name = field_ident.to_string();
@@ -121,9 +153,14 @@ impl<'a> NamedStructDeserializer<'a> {
             let value_getter_expr = match prost_attr.ty {
                 ProtobufType::Enumeration(path) => {
                     if let FieldModifier::Repeated = prost_attr.modifier {
+                        let get_next_value = next_value_getter(
+                            omit_type_errors,
+                            Some(quote! { Vec<String> }),
+                            &default_value,
+                        );
                         quote! {
                             {
-                                let values = map.next_value::<Vec<String>>()?;
+                                let values = #get_next_value;
                                 let mut result = vec![];
                                 for value in values.iter() {
                                     match #path::from_str_name(&value) {
@@ -139,9 +176,14 @@ impl<'a> NamedStructDeserializer<'a> {
                             }
                         }
                     } else {
+                        let get_next_value = next_value_getter(
+                            omit_type_errors,
+                            Some(quote! { String }),
+                            &default_value,
+                        );
                         quote! {
                             {
-                                let string_value = map.next_value::<String>()?;
+                                let string_value = #get_next_value;
                                 match #path::from_str_name(&string_value) {
                                     Some(v) => Some(v as i32),
                                     None => return Err(#serde::de::Error::unknown_variant(&string_value, &[])),
@@ -152,10 +194,15 @@ impl<'a> NamedStructDeserializer<'a> {
                 }
                 ProtobufType::Bytes(_) => {
                     if let FieldModifier::Repeated = prost_attr.modifier {
+                        let get_next_value = next_value_getter(
+                            omit_type_errors,
+                            Some(quote! { Vec<String> }),
+                            &default_value,
+                        );
                         quote! {
                             {
                                 extern crate base64 as _base64;
-                                let values = map.next_value::<Vec<String>>()?;
+                                let values = #get_next_value;
                                 let mut result = vec![];
                                 for value in values.iter() {
                                     match _base64::decode(value) {
@@ -176,10 +223,15 @@ impl<'a> NamedStructDeserializer<'a> {
                             }
                         }
                     } else {
+                        let get_next_value = next_value_getter(
+                            omit_type_errors,
+                            Some(quote! { String }),
+                            &default_value,
+                        );
                         quote! {
                             {
                                 extern crate base64 as _base64;
-                                let value = map.next_value::<String>()?;
+                                let value = #get_next_value;
                                 match _base64::decode(&value) {
                                     Ok(v) => Some(v.into()),
                                     Err(_) => return Err(#serde::de::Error::invalid_value(#serde::de::Unexpected::Str(&value), &"A base64 string")),
@@ -188,9 +240,12 @@ impl<'a> NamedStructDeserializer<'a> {
                         }
                     }
                 }
-                _ => quote! {
-                    Some(map.next_value()?)
-                },
+                _ => {
+                    let get_next_value = next_value_getter(omit_type_errors, None, &default_value);
+                    quote! {
+                        Some(#get_next_value)
+                    }
+                }
             };
 
             var_pat_fields.push(quote! {
@@ -271,12 +326,13 @@ impl<'a> NamedStructDeserializer<'a> {
 
 fn expand_struct(
     context: &Context,
+    meta: &DeriveMeta,
     serde: &Path,
     ident: &Ident,
     data: &DataStruct,
 ) -> Result<TokenStream, ()> {
     match &data.fields {
-        Fields::Named(f) => NamedStructDeserializer::new(context, serde, ident, f).expand(),
+        Fields::Named(f) => NamedStructDeserializer::new(context, meta, serde, ident, f).expand(),
         Fields::Unnamed(_) => {
             context.error_spanned_by(&data.fields, "Not implemented");
             Err(())
@@ -291,13 +347,24 @@ fn expand_struct(
     }
 }
 
-pub fn expand_deserialize(ident: &Ident, data: &Data) -> Result<TokenStream, Vec<Error>> {
+pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
     let context = Context::new();
+
+    let derive_meta = match DeriveMeta::from_ast(&context, &input.attrs) {
+        Ok(v) => v,
+        Err(_) => {
+            context.check()?;
+            return Ok(quote! {});
+        }
+    };
+
+    let ident = &input.ident;
+    let data = &input.data;
 
     let serde: Path = parse_quote! { _serde };
 
     let deserialization_block = match data {
-        Data::Struct(d) => expand_struct(&context, &serde, ident, d),
+        Data::Struct(d) => expand_struct(&context, &derive_meta, &serde, ident, d),
         Data::Enum(d) => {
             context.error_spanned_by(d.enum_token, "Not implemented");
             Err(())

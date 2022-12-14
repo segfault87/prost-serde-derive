@@ -1,7 +1,65 @@
 use proc_macro2::Span;
-use syn::{Attribute, Ident, Lit, Meta, NestedMeta, Path};
+use syn::{parse_quote, Attribute, Expr, Ident, Lit, Meta, NestedMeta, Path};
 
 use crate::context::Context;
+
+#[derive(Default)]
+pub struct DeriveMeta {
+    pub omit_type_errors: bool,
+}
+
+impl DeriveMeta {
+    pub fn from_ast(context: &Context, attributes: &[Attribute]) -> Result<DeriveMeta, ()> {
+        let ident = Ident::new("prost_serde_derive", Span::call_site());
+        let ident_omit_type_errors = Ident::new("omit_type_errors", Span::call_site());
+
+        let mut found = None;
+
+        let mut omit_type_errors = false;
+
+        for attr in attributes.iter() {
+            if attr.path.is_ident(&ident) {
+                if found.is_some() {
+                    context.error_spanned_by(
+                        attr,
+                        "Only one #[prost_serde_derive()] statement is allowed.",
+                    );
+                    return Err(());
+                }
+
+                let meta = attr.parse_meta().unwrap();
+                match meta {
+                    Meta::List(list) => {
+                        for nested_meta in list.nested.iter() {
+                            match nested_meta {
+                                NestedMeta::Meta(Meta::Path(p)) => {
+                                    if p.is_ident(&ident_omit_type_errors) {
+                                        omit_type_errors = true;
+                                    } else {
+                                        context.error_spanned_by(p, "unrecognized option.");
+                                        return Err(());
+                                    }
+                                }
+                                _ => {
+                                    context.error_spanned_by(nested_meta, "unrecognized option.");
+                                    return Err(());
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        context.error_spanned_by(&meta, "unrecognized option.");
+                        return Err(());
+                    }
+                }
+
+                found = Some(DeriveMeta { omit_type_errors })
+            }
+        }
+
+        Ok(found.unwrap_or_default())
+    }
+}
 
 pub enum ProstBytesType {
     Bytes,
@@ -197,7 +255,7 @@ impl ProstAttr {
                 if found.is_some() {
                     context.error_spanned_by(
                         &meta_list,
-                        "There are more than one #[prost] directive.",
+                        "Only one #[prost] statement is allowed per field.",
                     );
                     return Err(());
                 }
@@ -222,6 +280,16 @@ impl ProstAttr {
                 }
                 Err(())
             }
+        }
+    }
+
+    pub fn get_default_value(&self) -> Option<Expr> {
+        match self.modifier {
+            FieldModifier::None => match self.ty {
+                ProtobufType::Enumeration(_) => None,
+                _ => Some(parse_quote! { Default::default() }),
+            },
+            _ => Some(parse_quote! { Default::default() }),
         }
     }
 }

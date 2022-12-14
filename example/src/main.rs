@@ -27,10 +27,10 @@ fn main() {
         "id": 2,
         "name": "Alan Smithee",
         "email": "alansmithee@example.com",
-        "hashed_password": "aGVsbG8=",
-        "activation": "ACTIVATION_UNDEFINED",
-        "type": "USER_TYPE_UNDEFINED",
-        "api_keys": ["Yw=="]
+        "hashed_password": 5,
+        "activation": "ACTIVATION_REVOKED",
+        "type": "USER_TYPE_REGULAR",
+        "permissions": ["USER_PERMISSION_UPDATE_POSTS"]
     }"#;
 
     println!("{}", u1);
