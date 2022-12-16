@@ -327,7 +327,10 @@ fn expand_struct(
     match &data.fields {
         Fields::Named(f) => NamedStructDeserializer::new(context, meta, serde, ident, f).expand(),
         Fields::Unnamed(_) => {
-            context.error_spanned_by(&data.fields, "Not implemented");
+            context.error_spanned_by(
+                &data.fields,
+                "Unit struct is not available for deserialization.",
+            );
             Err(())
         }
         Fields::Unit => {
@@ -338,6 +341,30 @@ fn expand_struct(
             Err(())
         }
     }
+}
+
+struct EnumDeserializer<'a> {
+    serde: &'a Path,
+    ident: &'a Ident,
+}
+
+impl<'a> EnumDeserializer<'a> {
+    pub fn new(serde: &'a Path, ident: &'a Ident) -> Self {
+        Self { serde, ident }
+    }
+
+    pub fn expand(&self) -> Result<TokenStream, ()> {
+        let ident = self.ident;
+        let serde = self.serde;
+        Ok(quote! {
+            let str = String::deserialize(deserializer)?;
+            #ident::from_str_name(&str).ok_or(#serde::de::Error::unknown_variant(&str, &[]))
+        })
+    }
+}
+
+fn expand_enum(serde: &Path, ident: &Ident) -> Result<TokenStream, ()> {
+    EnumDeserializer::new(serde, ident).expand()
 }
 
 pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
@@ -358,10 +385,7 @@ pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>>
 
     let deserialization_block = match data {
         Data::Struct(d) => expand_struct(&context, &derive_meta, &serde, ident, d),
-        Data::Enum(d) => {
-            context.error_spanned_by(d.enum_token, "Not implemented");
-            Err(())
-        }
+        Data::Enum(_) => expand_enum(&serde, ident),
         Data::Union(d) => {
             context.error_spanned_by(
                 d.union_token,

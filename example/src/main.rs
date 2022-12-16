@@ -1,6 +1,6 @@
 mod testproto;
 
-use crate::testproto::User;
+use crate::testproto::{Activation, User};
 
 fn main() {
     let u1 = r#"{
@@ -34,4 +34,13 @@ fn main() {
     println!("{:#?}", serde_json::from_str::<User>(u1));
     println!("{:#?}", serde_json::from_str::<User>(u2));
     println!("{:#?}", serde_json::from_str::<User>(u3));
+
+    println!(
+        "{:?}",
+        serde_json::from_str::<Activation>(r#""ACTIVATION_ACTIVATED""#)
+    );
+    println!(
+        "{:?}",
+        serde_json::from_str::<Activation>(r#""ACTIVATION_NON_EXISTENT""#)
+    );
 }
