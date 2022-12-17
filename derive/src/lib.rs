@@ -4,9 +4,10 @@ extern crate quote;
 mod attr;
 mod context;
 mod deserialize;
+mod serialize;
 mod util;
 
-use crate::deserialize::expand_deserialize;
+use crate::{deserialize::expand_deserialize, serialize::expand_serialize};
 
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput, Error};
@@ -21,6 +22,15 @@ pub fn derive_deserialize(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     expand_deserialize(input)
+        .unwrap_or_else(to_compile_errors)
+        .into()
+}
+
+#[proc_macro_derive(Serialize, attributes(prost, prost_serde_derive))]
+pub fn derive_serialize(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    expand_serialize(input)
         .unwrap_or_else(to_compile_errors)
         .into()
 }

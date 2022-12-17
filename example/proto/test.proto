@@ -21,6 +21,11 @@ enum UserPermission {
     USER_PERMISSION_DELETE_POSTS = 3;
 }
 
+enum PaidType {
+    PAID_TYPE_ANNUAL = 0;
+    PAID_TYPE_MONTHLY = 1;
+}
+
 message User {
     int32 id = 1;
     string name = 2;
@@ -31,4 +36,5 @@ message User {
     repeated bytes api_keys = 7;
     repeated UserPermission permissions = 8;
     optional string homepage = 9;
+    optional PaidType paid_type = 10;
 }

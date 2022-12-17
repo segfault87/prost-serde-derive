@@ -6,7 +6,7 @@ fn main() {
         .out_dir("src")
         .type_attribute(
             "testproto.User",
-            "#[derive(prost_serde_derive::Deserialize)]",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
         )
         .type_attribute(
             "testproto.User",

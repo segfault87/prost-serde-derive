@@ -11,7 +11,8 @@ fn main() {
         "activation": "ACTIVATION_REQUESTED",
         "type": "USER_TYPE_REGULAR",
         "homepage": "https://www.johndoe.com",
-        "api_keys": ["YQ==", "Yg=="]
+        "api_keys": ["YQ==", "Yg=="],
+        "paid_type": "PAID_TYPE_MONTHLY"
     }"#;
     let u2 = r#"{
         "id": 2,
@@ -31,9 +32,17 @@ fn main() {
         "permissions": ["USER_PERMISSION_UPDATE_POSTS"]
     }"#;
 
-    println!("{:#?}", serde_json::from_str::<User>(u1));
-    println!("{:#?}", serde_json::from_str::<User>(u2));
-    println!("{:#?}", serde_json::from_str::<User>(u3));
+    let d1 = serde_json::from_str::<User>(u1).unwrap();
+    let d2 = serde_json::from_str::<User>(u2).unwrap();
+    let d3 = serde_json::from_str::<User>(u3).unwrap();
+
+    println!("{:#?}", d1);
+    println!("{:#?}", d2);
+    println!("{:#?}", d3);
+
+    println!("{}", serde_json::to_string(&d1).unwrap());
+    println!("{}", serde_json::to_string(&d2).unwrap());
+    println!("{}", serde_json::to_string(&d3).unwrap());
 
     println!(
         "{:?}",
