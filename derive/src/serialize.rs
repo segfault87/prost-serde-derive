@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use syn::{parse_quote, Data, DataStruct, DeriveInput, Error, Field, Fields, Path};
+use syn::{parse_quote, Data, DataEnum, DataStruct, DeriveInput, Error, Field, Fields, Path};
 
 use crate::{
     attr::{DeriveMeta, FieldModifier, ProstAttr, ProtobufType},
@@ -89,6 +89,8 @@ fn expand_struct(
                 .collect::<Result<Vec<TokenStream>, ()>>()?;
             let count = f.named.len();
             Ok(quote! {
+                use #serde::ser::SerializeStruct;
+
                 let mut state = serializer.serialize_struct(#ident_name, #count)?;
                 #(#fields)*
                 state.end()
@@ -97,18 +99,24 @@ fn expand_struct(
         Fields::Unnamed(_) => {
             context.error_spanned_by(
                 &data.fields,
-                "Unnamed struct is not available for deserialization.",
+                "Unnamed struct is not available for serialization.",
             );
             Err(())
         }
         Fields::Unit => {
             context.error_spanned_by(
                 &data.fields,
-                "Unit struct is not available for deserialization.",
+                "Unit struct is not available for serialization.",
             );
             Err(())
         }
     }
+}
+
+fn expand_enum(_context: &Context, _serde: &Path, _data: &DataEnum) -> Result<TokenStream, ()> {
+    Ok(quote! {
+        serializer.serialize_str(self.as_str_name())
+    })
 }
 
 pub fn expand_serialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
@@ -118,7 +126,7 @@ pub fn expand_serialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
         Ok(v) => v,
         Err(_) => {
             context.check()?;
-            return Ok(quote! {});
+            return Err(vec![]); // This never happens becuase `context.check()` always returns errors
         }
     };
 
@@ -129,11 +137,11 @@ pub fn expand_serialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
 
     let serialization_block = match data {
         Data::Struct(d) => expand_struct(&context, &derive_meta, &serde, ident, d),
-        Data::Enum(_) => Err(()),
+        Data::Enum(d) => expand_enum(&context, &serde, d),
         Data::Union(d) => {
             context.error_spanned_by(
                 d.union_token,
-                "Union type is not available for deserialization.",
+                "Union type is not available for serialization.",
             );
             Err(())
         }
@@ -143,8 +151,6 @@ pub fn expand_serialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
     context.check()?;
 
     let impl_body = quote! {
-        use #serde::ser::SerializeStruct;
-
         impl #serde::Serialize for #ident {
 
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

@@ -18,7 +18,10 @@ fn main() {
         "testproto.UserType",
         "testproto.UserPermission",
     ] {
-        builder = builder.type_attribute(r#enum, "#[derive(prost_serde_derive::Deserialize)]")
+        builder = builder.type_attribute(
+            r#enum,
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
     }
 
     builder

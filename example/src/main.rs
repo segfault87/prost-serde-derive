@@ -45,11 +45,13 @@ fn main() {
     println!("{}", serde_json::to_string(&d3).unwrap());
 
     println!(
-        "{:?}",
+        " {:?}",
         serde_json::from_str::<Activation>(r#""ACTIVATION_ACTIVATED""#)
     );
     println!(
         "{:?}",
         serde_json::from_str::<Activation>(r#""ACTIVATION_NON_EXISTENT""#)
     );
+
+    println!("{}", serde_json::to_string(&Activation::Revoked).unwrap())
 }

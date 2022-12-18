@@ -15,8 +15,6 @@ To see it in action, see `example` crate.
 ## TODO
 
 * Documentation
-* Serialization support
-* Drop-in compatibility with [Serde](https://serde.rs)
 * Unit tests
 
 [Serde]: https://serde.rs
