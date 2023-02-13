@@ -49,7 +49,7 @@ fn serialize_field(context: &Context, serde: &Path, field: &Field) -> Result<Tok
             FieldModifier::Optional => quote! {
                 &match self.#ident {
                     Some(v) => {
-                        Some(PaidType::from_i32(v).ok_or_else(
+                        Some(#p::from_i32(v).ok_or_else(
                             || #serde::ser::Error::custom(format!("Invalid enum value {}", v))
                         )?.as_str_name())
                     },
