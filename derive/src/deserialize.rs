@@ -150,9 +150,13 @@ impl<'a> NamedStructDeserializer<'a> {
 
             let default_value = prost_attr.get_default_value();
 
+            let field_var_ident = Ident::new(
+                &format!("psd__{}", deraw(field.ident.as_ref().unwrap())),
+                Span::call_site(),
+            );
             let field_ident = field.ident.as_ref().unwrap();
             let field_name = field_ident.to_string();
-            var_decls.push(quote! { let mut #field_ident = None; });
+            var_decls.push(quote! { let mut #field_var_ident = None; });
 
             let value_getter_expr = match prost_attr.ty {
                 ProtobufType::Enumeration(path) => {
@@ -237,32 +241,34 @@ impl<'a> NamedStructDeserializer<'a> {
 
             var_pat_fields.push(quote! {
                 #field_enum_ident::#field_variant => {
-                    if #field_ident.is_some() {
+                    if #field_var_ident.is_some() {
                         return Err(#serde::de::Error::duplicate_field(#field_name));
                     }
-                    #field_ident = #value_getter_expr;
+                    #field_var_ident = #value_getter_expr;
                 }
             });
             match prost_attr.modifier {
                 FieldModifier::Repeated => {
                     var_narrowings.push(quote! {
-                        let #field_ident = #field_ident.unwrap_or(vec![]);
+                        let #field_var_ident = #field_var_ident.unwrap_or(vec![]);
                     });
                 }
                 FieldModifier::None => {
                     if use_default_for_missing_fields {
                         var_narrowings.push(quote! {
-                            let #field_ident = #field_ident.unwrap_or(#default_value);
+                            let #field_var_ident = #field_var_ident.unwrap_or(#default_value);
                         })
                     } else {
                         var_narrowings.push(quote! {
-                            let #field_ident = #field_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
+                            let #field_var_ident = #field_var_ident.ok_or_else(|| #serde::de::Error::missing_field(#field_name))?;
                         });
                     }
                 }
                 _ => {}
             }
-            var_fields.push(field_ident);
+            var_fields.push(quote! {
+                #field_ident: #field_var_ident
+            });
         }
 
         let expr = quote! {
