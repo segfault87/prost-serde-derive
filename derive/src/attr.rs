@@ -79,6 +79,7 @@ pub enum ProtobufType {
     Double,
 }
 
+#[derive(Clone, Copy)]
 pub enum FieldModifier {
     None,
     Repeated,

@@ -128,7 +128,7 @@ impl<'a> NamedStructDeserializer<'a> {
             if omit_type_errors {
                 quote! {
                     match #getter {
-                        Ok(value) => Some({ #expr }),
+                        Ok(value) => #expr,
                         Err(_) => Some(#default_value)
                     }
                 }
@@ -158,85 +158,105 @@ impl<'a> NamedStructDeserializer<'a> {
             let field_name = field_ident.to_string();
             var_decls.push(quote! { let mut #field_var_ident = None; });
 
-            let value_getter_expr = match prost_attr.ty {
-                ProtobufType::Enumeration(path) => {
-                    if let FieldModifier::Repeated = prost_attr.modifier {
-                        value_getter(
-                            omit_type_errors,
-                            Some(quote! { Vec<String> }),
-                            quote! {
-                                let mut result = vec![];
-                                for value in value.iter() {
-                                    match #path::from_str_name(&value) {
-                                        Some(v) => {
-                                            result.push(v.into());
-                                        }
-                                        None => {
-                                            return Err(#serde::de::Error::unknown_variant(&value, &[]));
-                                        }
-                                    }
-                                }
-                                result
-                            },
-                            &default_value,
-                        )
-                    } else {
-                        value_getter(
-                            omit_type_errors,
-                            Some(quote! { String }),
-                            quote! {
+            let value_getter_expr = match (prost_attr.modifier, prost_attr.ty) {
+                (FieldModifier::None, ProtobufType::Enumeration(path)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { String }),
+                    quote! {
+                        Some(match #path::from_str_name(&value) {
+                            Some(v) => v.into(),
+                            None => return Err(#serde::de::Error::unknown_variant(&value, &[])),
+                        })
+                    },
+                    &default_value,
+                ),
+                (FieldModifier::None, ProtobufType::Bytes(_)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { String }),
+                    quote! {
+                        Some({
+                            extern crate base64 as _base64;
+                            match _base64::decode(&value) {
+                                Ok(v) => v.into(),
+                                Err(_) => return Err(#serde::de::Error::invalid_value(#serde::de::Unexpected::Str(&value), &"A base64 string")),
+                            }
+                        })
+                    },
+                    &default_value,
+                ),
+                (FieldModifier::None, _) => value_getter(
+                    omit_type_errors,
+                    None,
+                    quote! { Some(value) },
+                    &default_value,
+                ),
+                (FieldModifier::Repeated, ProtobufType::Enumeration(path)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { Vec<String> }),
+                    quote! {
+                        Some({
+                            let mut result = vec![];
+                            for value in value.iter() {
                                 match #path::from_str_name(&value) {
-                                    Some(v) => v.into(),
-                                    None => return Err(#serde::de::Error::unknown_variant(&value, &[])),
-                                }
-                            },
-                            &default_value,
-                        )
-                    }
-                }
-                ProtobufType::Bytes(_) => {
-                    if let FieldModifier::Repeated = prost_attr.modifier {
-                        value_getter(
-                            omit_type_errors,
-                            Some(quote! { Vec<String> }),
-                            quote! {
-                                extern crate base64 as _base64;
-                                let mut result = vec![];
-                                for value in value.iter() {
-                                    match _base64::decode(value) {
-                                        Ok(v) => {
-                                            result.push(v.into());
-                                        },
-                                        Err(_) => {
-                                            return Err(
-                                                #serde::de::Error::invalid_value(
-                                                    #serde::de::Unexpected::Str(value),
-                                                    &"A base64 string",
-                                                ),
-                                            );
-                                        }
+                                    Some(v) => {
+                                        result.push(v.into());
+                                    }
+                                    None => {
+                                        return Err(#serde::de::Error::unknown_variant(&value, &[]));
                                     }
                                 }
-                                result
-                            },
-                            &default_value,
-                        )
-                    } else {
-                        value_getter(
-                            omit_type_errors,
-                            Some(quote! { String }),
-                            quote! {
-                                extern crate base64 as _base64;
-                                match _base64::decode(&value) {
-                                    Ok(v) => v.into(),
-                                    Err(_) => return Err(#serde::de::Error::invalid_value(#serde::de::Unexpected::Str(&value), &"A base64 string")),
+                            }
+                            result
+                        })
+                    },
+                    &default_value,
+                ),
+                (FieldModifier::Repeated, ProtobufType::Bytes(_)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { Vec<String> }),
+                    quote! {
+                        Some({
+                            extern crate base64 as _base64;
+                            let mut result = vec![];
+                            for value in value.iter() {
+                                match _base64::decode(value) {
+                                    Ok(v) => {
+                                        result.push(v.into());
+                                    },
+                                    Err(_) => {
+                                        return Err(
+                                            #serde::de::Error::invalid_value(
+                                                #serde::de::Unexpected::Str(value),
+                                                &"A base64 string",
+                                            ),
+                                        );
+                                    }
                                 }
+                            }
+                            result
+                        })
+                    },
+                    &default_value,
+                ),
+                (FieldModifier::Repeated, _) => todo!(),
+                (FieldModifier::Optional, ProtobufType::Enumeration(path)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { Option<String> }),
+                    quote! {
+                        match &value {
+                            Some(v) => match #path::from_str_name(v) {
+                                Some(v) => Some(v.into()),
+                                None => return Err(#serde::de::Error::unknown_variant(v, &[])),
                             },
-                            &default_value,
-                        )
-                    }
+                            None => None,
+                        }
+                    },
+                    &default_value,
+                ),
+                (FieldModifier::Optional, ProtobufType::Bytes(_)) => todo!(),
+                (FieldModifier::Optional, _) => {
+                    value_getter(omit_type_errors, None, quote! { value }, &default_value)
                 }
-                _ => value_getter(omit_type_errors, None, quote! { value }, &default_value),
             };
 
             var_pat_fields.push(quote! {
