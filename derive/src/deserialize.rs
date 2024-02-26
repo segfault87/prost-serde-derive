@@ -136,7 +136,7 @@ impl<'a> NamedStructDeserializer<'a> {
                 quote! {
                     {
                         let value = #getter?;
-                        Some({ #expr })
+                        #expr
                     }
                 }
             }

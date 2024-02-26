@@ -7,9 +7,9 @@ edition = "2021"
 base64 = "0.20"
 serde = "1.0"
 serde_json = "1.0"
-prost = "0.11"
+prost = "0.12"
 prost-serde-derive = { path = "../derive" }
 
 [build-dependencies]
-prost-build = "0.11"
-tonic-build = { git = "https://github.com/segfault87/tonic", branch = "create-enum-from-str-name" }
+prost-build = "0.12"
+tonic-build = "0.11"
