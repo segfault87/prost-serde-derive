@@ -7,6 +7,7 @@ use crate::context::Context;
 pub struct DeriveMeta {
     pub omit_type_errors: bool,
     pub use_default_for_missing_fields: bool,
+    pub ignore_unknown_fields: bool,
 }
 
 impl DeriveMeta {
@@ -15,9 +16,11 @@ impl DeriveMeta {
         let ident_omit_type_errors = Ident::new("omit_type_errors", Span::call_site());
         let ident_use_default_for_missing_fields =
             Ident::new("use_default_for_missing_fields", Span::call_site());
+        let ident_ignore_unknown_fields = Ident::new("ignore_unknown_fields", Span::call_site());
 
         let mut omit_type_errors = false;
         let mut use_default_for_missing_fields = false;
+        let mut ignore_unknown_fields = false;
 
         for attr in attributes.iter() {
             if attr.path.is_ident(&ident) {
@@ -31,6 +34,8 @@ impl DeriveMeta {
                                         omit_type_errors = true;
                                     } else if p.is_ident(&ident_use_default_for_missing_fields) {
                                         use_default_for_missing_fields = true;
+                                    } else if p.is_ident(&ident_ignore_unknown_fields) {
+                                        ignore_unknown_fields = true;
                                     } else {
                                         context.error_spanned_by(p, "unrecognized option.");
                                         return Err(());
@@ -54,6 +59,7 @@ impl DeriveMeta {
         Ok(DeriveMeta {
             omit_type_errors,
             use_default_for_missing_fields,
+            ignore_unknown_fields,
         })
     }
 }

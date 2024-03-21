@@ -10,6 +10,8 @@ use crate::{
     util::{deraw, wrap_block},
 };
 
+static IDENT_VARIANT_UNKNOWN: &str = "_Unknown";
+
 struct NamedStructDeserializer<'a> {
     context: &'a Context,
     meta: &'a DeriveMeta,
@@ -40,13 +42,17 @@ impl<'a> NamedStructDeserializer<'a> {
         self.fields.named.iter().map(|v| v.ident.as_ref().unwrap())
     }
 
-    fn expand_field_deserializer_impl(&self) -> (Ident, TokenStream, Vec<Ident>) {
+    fn expand_field_deserializer_impl(
+        &self,
+        unknown: Option<&Ident>,
+    ) -> (Ident, TokenStream, Vec<Ident>) {
         let serde = self.serde;
 
-        let variants = self
-            .get_field_idents()
-            .map(|v| Ident::new(&deraw(v).to_case(Case::Pascal), Span::call_site()))
-            .collect::<Vec<_>>();
+        let mut variants = vec![];
+        variants.extend(
+            self.get_field_idents()
+                .map(|v| Ident::new(&deraw(v).to_case(Case::Pascal), Span::call_site())),
+        );
         let field_names =
             itertools::join(self.get_field_idents().map(|v| format!("`{}`", v)), " or ");
 
@@ -61,8 +67,18 @@ impl<'a> NamedStructDeserializer<'a> {
             },
         );
 
+        let (unknown_variant, unknown_match_arm) = if let Some(unknown) = unknown {
+            (Some(quote! { #unknown, }), quote! { Ok(#ident::#unknown) })
+        } else {
+            (
+                None,
+                quote! { Err(#serde::de::Error::unknown_field(value, FIELDS)) },
+            )
+        };
+
         let expr = quote! {
             enum #ident {
+                #unknown_variant
                 #(#variants),*
             }
 
@@ -86,7 +102,7 @@ impl<'a> NamedStructDeserializer<'a> {
                         {
                             match value {
                                 #(#pat_fields,)*
-                                _ => Err(#serde::de::Error::unknown_field(value, FIELDS)),
+                                _ => #unknown_match_arm,
                             }
                         }
                     }
@@ -101,13 +117,18 @@ impl<'a> NamedStructDeserializer<'a> {
 
     fn expand_visitor_impl(&self) -> Result<(Ident, TokenStream), ()> {
         let serde = self.serde;
+        let unknown = Ident::new(IDENT_VARIANT_UNKNOWN, Span::call_site());
 
         let ident = self.ident;
         let expecting = format!("struct {}", ident);
         let visitor_ident = Ident::new("Visitor", Span::call_site());
 
-        let (field_enum_ident, field_deserializer, field_variants) =
-            self.expand_field_deserializer_impl();
+        let (field_enum_ident, field_deserializer, field_variants) = self
+            .expand_field_deserializer_impl(if self.meta.ignore_unknown_fields {
+                Some(&unknown)
+            } else {
+                None
+            });
 
         let mut var_decls = vec![];
         let mut var_pat_fields = vec![];
@@ -140,6 +161,14 @@ impl<'a> NamedStructDeserializer<'a> {
                     }
                 }
             }
+        }
+
+        if self.meta.ignore_unknown_fields {
+            var_pat_fields.push(quote! {
+                #field_enum_ident::#unknown => {
+                    map.next_value::<serde_json::Value>()?;
+                }
+            });
         }
 
         let omit_type_errors = self.meta.omit_type_errors;
