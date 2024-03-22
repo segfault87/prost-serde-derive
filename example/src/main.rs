@@ -12,7 +12,8 @@ fn main() {
         "type": "USER_TYPE_REGULAR",
         "homepage": "https://www.johndoe.com",
         "api_keys": ["YQ==", "Yg=="],
-        "paid_type": "PAID_TYPE_MONTHLY"
+        "paid_type": "PAID_TYPE_MONTHLY",
+        "friend_ids": [2, 3]
     }"#;
     let u2 = r#"{
         "id": 2,

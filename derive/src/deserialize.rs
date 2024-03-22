@@ -267,7 +267,12 @@ impl<'a> NamedStructDeserializer<'a> {
                     },
                     &default_value,
                 ),
-                (FieldModifier::Repeated, _) => todo!(),
+                (FieldModifier::Repeated, _) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { Vec<_> }),
+                    quote! { Some(value) },
+                    &default_value,
+                ),
                 (FieldModifier::Optional, ProtobufType::Enumeration(path)) => value_getter(
                     omit_type_errors,
                     Some(quote! { Option<String> }),
@@ -282,7 +287,24 @@ impl<'a> NamedStructDeserializer<'a> {
                     },
                     &default_value,
                 ),
-                (FieldModifier::Optional, ProtobufType::Bytes(_)) => todo!(),
+                (FieldModifier::Optional, ProtobufType::Bytes(_)) => value_getter(
+                    omit_type_errors,
+                    Some(quote! { Option<String> }),
+                    quote! {
+                        if let Some(value) = value.as_ref() {
+                            Some({
+                                extern crate base64 as _base64;
+                                match _base64::decode(&value) {
+                                    Ok(v) => v.into(),
+                                    Err(_) => return Err(#serde::de::Error::invalid_value(#serde::de::Unexpected::Str(&value), &"A base64 string")),
+                                }
+                            })
+                        } else {
+                            None
+                        }
+                    },
+                    &default_value,
+                ),
                 (FieldModifier::Optional, _) => {
                     value_getter(omit_type_errors, None, quote! { value }, &default_value)
                 }

@@ -28,7 +28,7 @@ fn serialize_field(context: &Context, serde: &Path, field: &Field) -> Result<Tok
                 FieldModifier::Optional => {
                     quote! {
                         #base64
-                        &self.#ident.map(_base64::encode)
+                        &self.#ident.as_ref().map(_base64::encode)
                     }
                 }
                 FieldModifier::None => {

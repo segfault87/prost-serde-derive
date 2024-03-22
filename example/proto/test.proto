@@ -37,4 +37,5 @@ message User {
     repeated UserPermission permissions = 8;
     optional string homepage = 9;
     optional PaidType paid_type = 10;
+    repeated int32 friend_ids = 11;
 }
