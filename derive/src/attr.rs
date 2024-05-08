@@ -53,11 +53,13 @@ impl DeriveMeta {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum ProstBytesType {
     Bytes,
     Vec,
 }
 
+#[derive(Clone)]
 pub enum ProtobufType {
     Message,
     Enumeration(Path),

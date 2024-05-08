@@ -20,10 +20,6 @@ pub fn wrap_block(code: TokenStream) -> TokenStream {
     }
 }
 
-pub fn deraw(ident: &Ident) -> String {
-    ident.to_string().trim_start_matches("r#").to_owned()
-}
-
 pub fn parse_meta_args_from_attrs(
     attrs: &[Attribute],
     ident: &Ident,
@@ -38,10 +34,8 @@ pub fn parse_meta_args_from_attrs(
                         .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?
                         .into_iter(),
                 );
-            } else {
-                if is_strict {
-                    return Err(into_syn_error(&attr.meta, "is not a structured list"));
-                }
+            } else if is_strict {
+                return Err(into_syn_error(&attr.meta, "is not a structured list"));
             }
         }
     }

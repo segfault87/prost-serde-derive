@@ -39,7 +39,7 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        if !thread::panicking() && self.errors.borrow().is_some() {
+        if !thread::panicking() && self.errors.borrow().as_ref().is_some_and(|e| !e.is_empty()) {
             panic!("forgot to check for errors");
         }
     }

@@ -1,16 +1,16 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::ext::IdentExt;
 use syn::{Field, Path};
 
 use crate::attr::{FieldModifier, ProstAttr, ProtobufType};
 use crate::context::Context;
-use crate::util::deraw;
 
 pub fn serialize_field(context: &Context, serde: &Path, field: &Field) -> Result<TokenStream, ()> {
     let ident = field.ident.as_ref().ok_or_else(|| {
         context.push_error_spanned_by(field, "Field should have a name");
     })?;
-    let ident_str = deraw(ident);
+    let ident_str = ident.unraw().to_string();
 
     let prost_attr = ProstAttr::from_ast(context, &field.attrs)?;
 
