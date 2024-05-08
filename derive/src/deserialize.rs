@@ -2,13 +2,12 @@ use std::iter;
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::quote;
 use syn::{parse_quote, Data, DataStruct, DeriveInput, Error, Fields, FieldsNamed, Path};
 
-use crate::{
-    attr::{DeriveMeta, FieldModifier, ProstAttr, ProtobufType},
-    context::Context,
-    util::{deraw, wrap_block},
-};
+use crate::attr::{DeriveMeta, FieldModifier, ProstAttr, ProtobufType};
+use crate::context::Context;
+use crate::util::{deraw, wrap_block};
 
 static IDENT_VARIANT_UNKNOWN: &str = "_Unknown";
 
@@ -404,14 +403,14 @@ fn expand_struct(
     match &data.fields {
         Fields::Named(f) => NamedStructDeserializer::new(context, meta, serde, ident, f).expand(),
         Fields::Unnamed(_) => {
-            context.error_spanned_by(
+            context.push_error_spanned_by(
                 &data.fields,
                 "Unit struct is not available for deserialization.",
             );
             Err(())
         }
         Fields::Unit => {
-            context.error_spanned_by(
+            context.push_error_spanned_by(
                 &data.fields,
                 "Unit struct is not available for deserialization.",
             );
@@ -447,12 +446,9 @@ fn expand_enum(serde: &Path, ident: &Ident) -> Result<TokenStream, ()> {
 pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
     let context = Context::new();
 
-    let derive_meta = match DeriveMeta::from_ast(&context, &input.attrs) {
-        Ok(v) => v,
-        Err(_) => {
-            context.check()?;
-            return Ok(quote! {});
-        }
+    let Ok(derive_meta) = DeriveMeta::from_ast(&context, &input.attrs) else {
+        context.check()?;
+        unreachable!()
     };
 
     let ident = &input.ident;
@@ -460,24 +456,25 @@ pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>>
 
     let serde: Path = parse_quote! { _serde };
 
-    let deserialization_block = match data {
+    let Ok(deserialization_block) = (match data {
         Data::Struct(d) => expand_struct(&context, &derive_meta, &serde, ident, d),
         Data::Enum(_) => expand_enum(&serde, ident),
         Data::Union(d) => {
-            context.error_spanned_by(
+            context.push_error_spanned_by(
                 d.union_token,
                 "Union type is not available for deserialization.",
             );
             Err(())
         }
-    }
-    .unwrap_or_else(|_| quote! {});
-
-    context.check()?;
+    }) else {
+        context.check()?;
+        unreachable!();
+    };
 
     let impl_body = quote! {
-        impl<'de> #serde::Deserialize<'de> for #ident {
+        extern crate serde as _serde;
 
+        impl<'de> #serde::Deserialize<'de> for #ident {
             fn deserialize<D>(deserializer: D) -> Result<#ident, D::Error>
             where D: #serde::Deserializer<'de>,
             {

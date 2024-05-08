@@ -3,3 +3,4 @@ members = [
 	"derive",
 	"example",
 ]
+resolver = "2"

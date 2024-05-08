@@ -1,0 +1,14 @@
+name: typos
+
+on:
+  pull_request
+
+jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v2
+
+      - name: typos-action
+        uses: crate-ci/typos@v1.21.0
