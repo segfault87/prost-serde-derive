@@ -196,7 +196,7 @@ impl<'a> NamedStructDeserializer<'a> {
         for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
             let prost_attr = ProstAttr::from_ast(self.context, &field.attrs)?;
 
-            let ident_field_var = format_ident!("psd__{}", field.ident.as_ref().unwrap().unraw());
+            let ident_field_var = format_ident!("psd_{}", field.ident.as_ref().unwrap().unraw());
             let ident_field = field.ident.as_ref().unwrap();
             let field_name = ident_field.to_string();
             var_decls.push(quote! { let mut #ident_field_var = None; });
@@ -238,7 +238,7 @@ impl<'a> NamedStructDeserializer<'a> {
                     V: #serde::de::MapAccess<'de>,
                 {
                     #(#var_decls)*
-                    while let Some(key) = map.next_key()? {
+                    while let Some(key) = map.next_key::<#ident_field_enum>()? {
                         match key {
                             #(#var_match_arms),*
                         };
