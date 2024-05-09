@@ -187,9 +187,7 @@ impl<'a> NamedStructDeserializer<'a> {
 
         if self.meta.ignore_unknown_fields {
             var_match_arms.push(quote! {
-                #ident_field_enum::#unknown => {
-                    map.next_value::<serde_json::Value>()?;
-                }
+                #ident_field_enum::#unknown => { }
             });
         }
 

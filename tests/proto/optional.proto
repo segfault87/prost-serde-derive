@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package optional;
+
+message Optional {
+    optional int32 id = 1;
+    optional int64 timestamp = 2;
+    optional string name = 3;
+    optional bytes hashed_password = 4;
+    optional bool is_active = 5;
+}

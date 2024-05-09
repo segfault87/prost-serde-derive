@@ -10,7 +10,7 @@ fn proto() -> primitive::Primitive {
         id: 39,
         timestamp: 100000000000000,
         name: "name".to_string(),
-        hashed_password: [0xff, 0xe2, 0x3f].to_vec(),
+        hashed_password: vec![0xff, 0xe2, 0x3f],
         is_active: true,
     }
 }
