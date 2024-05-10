@@ -2,12 +2,14 @@ syntax = "proto3";
 
 package oneof;
 
-message Animal {
+message Oneof {
     oneof animal {
         Cat cat = 1;
         Dog dog = 2;
         Wolf wolf = 3;
     }
+    optional bool is_wild = 4;
+    optional int32 age = 5;
 }
 
 message Cat {

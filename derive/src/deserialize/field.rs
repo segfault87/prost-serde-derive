@@ -4,6 +4,7 @@ use syn::{Ident, Path};
 
 use crate::attr::{DeriveMeta, FieldModifier, ProstAttr, ProtobufType};
 use crate::context::Context;
+use crate::util::into_syn_error;
 
 pub struct FieldVisitorTokenStream {
     pub value_getter_expr: TokenStream,
@@ -26,7 +27,7 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
         }
     }
 
-    pub fn get_value_getter_expr(&self, prost_attr: &ProstAttr) -> TokenStream {
+    pub fn get_value_getter_expr(&self, prost_attr: &ProstAttr) -> Result<TokenStream, ()> {
         match prost_attr.modifier {
             FieldModifier::None => self.get_none_value_getter_expr(prost_attr),
             FieldModifier::Repeated => self.get_repeated_value_getter_expr(prost_attr),
@@ -34,12 +35,12 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
         }
     }
 
-    fn get_none_value_getter_expr(&self, prost_attr: &ProstAttr) -> TokenStream {
+    fn get_none_value_getter_expr(&self, prost_attr: &ProstAttr) -> Result<TokenStream, ()> {
         let serde = self.serde;
         let defaut_value = prost_attr.get_default_value();
 
         match prost_attr.ty {
-            ProtobufType::Enumeration(ref path) => self.value_getter(
+            ProtobufType::Enumeration(ref path) => Ok(self.value_getter(
                 Some(quote! { String }),
                 quote! {
                     Some(match #path::from_str_name(&value) {
@@ -48,8 +49,8 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     })
                 },
                 defaut_value,
-            ),
-            ProtobufType::Bytes(_) => self.value_getter(
+            )),
+            ProtobufType::Bytes(_) => Ok(self.value_getter(
                 Some(quote! { String }),
                 quote! {
                     Some({
@@ -61,21 +62,47 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     })
                 },
                 defaut_value,
-            ),
-            _ => self.value_getter(
+            )),
+            ProtobufType::OneOf(_) => {
+                let serde = self.serde;
+
+                Ok(self.value_getter(
+                    None,
+                    quote! {
+                        let mut collect = _serde::__private::Vec::<
+                            _serde::__private::Option<(
+                                _serde::__private::de::Content,
+                                _serde::__private::de::Content,
+                            )>,
+                        >::new();
+                        collect.push(_serde::__private::Some((#serde::__private::de::Content::String(name), value)));
+
+                        Some(
+                            #serde::de::Deserialize::deserialize(
+                                #serde::__private::de::FlatMapDeserializer(
+                                    &mut collect,
+                                    _serde::__private::PhantomData,
+                                )
+                            )?
+                        )
+                    },
+                    defaut_value,
+                ))
+            },
+            _ => Ok(self.value_getter(
                 None,
                 quote! { Some(value) },
                 defaut_value,
-            ),
+            )),
         }
     }
 
-    fn get_repeated_value_getter_expr(&self, prost_attr: &ProstAttr) -> TokenStream {
+    fn get_repeated_value_getter_expr(&self, prost_attr: &ProstAttr) -> Result<TokenStream, ()> {
         let serde = self.serde;
         let default_value = prost_attr.get_default_value();
 
         match prost_attr.ty {
-            ProtobufType::Enumeration(ref path) => self.value_getter(
+            ProtobufType::Enumeration(ref path) => Ok(self.value_getter(
                 Some(quote! { Vec<String> }),
                 quote! {
                     Some({
@@ -94,8 +121,8 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     })
                 },
                 default_value,
-            ),
-            ProtobufType::Bytes(_) => self.value_getter(
+            )),
+            ProtobufType::Bytes(_) => Ok(self.value_getter(
                 Some(quote! { Vec<String> }),
                 quote! {
                     Some({
@@ -120,21 +147,28 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     })
                 },
                 default_value,
-            ),
-            _ => self.value_getter(
+            )),
+            ProtobufType::OneOf(ref path) => {
+                self.context.push_syn_error(into_syn_error(
+                    path,
+                    "oneof should not have modifier(optional, repeated)",
+                ));
+                return Err(());
+            }
+            _ => Ok(self.value_getter(
                 Some(quote! { Vec<_> }),
                 quote! { Some(value) },
                 default_value,
-            ),
+            )),
         }
     }
 
-    fn get_optional_value_getter_expr(&self, prost_attr: &ProstAttr) -> TokenStream {
+    fn get_optional_value_getter_expr(&self, prost_attr: &ProstAttr) -> Result<TokenStream, ()> {
         let serde = self.serde;
         let default_value = prost_attr.get_default_value();
 
         match prost_attr.ty {
-            ProtobufType::Enumeration(ref path) => self.value_getter(
+            ProtobufType::Enumeration(ref path) => Ok(self.value_getter(
                 Some(quote! { Option<String> }),
                 quote! {
                     match &value {
@@ -146,8 +180,8 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     }
                 },
                 default_value,
-            ),
-            ProtobufType::Bytes(_) => self.value_getter(
+            )),
+            ProtobufType::Bytes(_) => Ok(self.value_getter(
                 Some(quote! { Option<String> }),
                 quote! {
                     if let Some(value) = value.as_ref() {
@@ -163,8 +197,15 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     }
                 },
                 default_value,
-            ),
-            _ => self.value_getter(None, quote! { value }, default_value),
+            )),
+            ProtobufType::OneOf(ref path) => {
+                self.context.push_syn_error(into_syn_error(
+                    path,
+                    "oneof should not have modifier(optional, repeated)",
+                ));
+                return Err(());
+            }
+            _ => Ok(self.value_getter(None, quote! { value }, default_value)),
         }
     }
 
@@ -201,11 +242,11 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
         prost_attr: &ProstAttr,
         field_name: &String,
         ident_field_var: &Ident,
-    ) -> FieldVisitorTokenStream {
+    ) -> Result<FieldVisitorTokenStream, ()> {
         let serde = self.serde;
         let default_value = prost_attr.get_default_value();
 
-        let value_getter_expr = self.get_value_getter_expr(prost_attr);
+        let value_getter_expr = self.get_value_getter_expr(prost_attr)?;
 
         let narrowing_expr = match prost_attr.modifier {
             FieldModifier::None => {
@@ -227,9 +268,9 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
             _ => quote! {},
         };
 
-        FieldVisitorTokenStream {
+        Ok(FieldVisitorTokenStream {
             value_getter_expr,
             narrowing_expr,
-        }
+        })
     }
 }

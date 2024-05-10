@@ -14,6 +14,15 @@ pub fn serialize_field(context: &Context, serde: &Path, field: &Field) -> Result
 
     let prost_attr = ProstAttr::from_ast(context, &field.attrs)?;
 
+    // it is a special case that the field should be flatten.
+    if let ProtobufType::OneOf(_) = prost_attr.ty {
+        return Ok(quote! {
+            if let Some(v) = &self.#ident {
+                state.serialize_field(v.field_name(), &self.#ident)?;
+            }
+        });
+    }
+
     let serialize_stmt = match prost_attr.ty {
         ProtobufType::Bytes(_) => {
             let base64 = quote! { extern crate base64 as _base64; };

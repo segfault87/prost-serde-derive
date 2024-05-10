@@ -5,10 +5,10 @@ use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::ext::IdentExt;
-use syn::{DataStruct, Fields, FieldsNamed, Path};
+use syn::{parse_quote, DataStruct, Fields, FieldsNamed, Path, Type};
 
 use super::field::FieldVisitorTokenStream;
-use crate::attr::{DeriveMeta, ProstAttr};
+use crate::attr::{DeriveMeta, ProstAttr, ProtobufType};
 use crate::context::Context;
 use crate::deserialize::field::FieldVisitorTokenGenerator;
 
@@ -24,7 +24,7 @@ pub fn expand_struct(
 ) -> Result<TokenStream, ()> {
     match &data.fields {
         Fields::Named(f) => {
-            NamedStructDeserializer::new(context, meta, serde, deserializer, ident, f).expand()
+            NamedStructDeserializer::new(context, meta, serde, deserializer, ident, f)?.expand()
         }
         Fields::Unnamed(_) => {
             context.push_error_spanned_by(
@@ -43,13 +43,70 @@ pub fn expand_struct(
     }
 }
 
+struct SingleFieldVariant {
+    ident: Ident,
+    ty: Option<Type>,
+}
+
+impl SingleFieldVariant {
+    pub fn new(ident: Ident, ty: Option<Type>) -> Self {
+        Self { ident, ty }
+    }
+
+    pub fn ident(&self) -> &Ident {
+        &self.ident
+    }
+
+    pub fn def(&self) -> TokenStream {
+        let ident = self.ident();
+        match &self.ty {
+            Some(ty) => {
+                quote! { #ident(#ty) }
+            }
+            None => {
+                quote! { #ident }
+            }
+        }
+    }
+
+    pub fn pat(&self) -> TokenStream {
+        let ident = self.ident();
+        match &self.ty {
+            Some(_) => {
+                quote! { #ident(name) }
+            }
+            None => {
+                quote! { #ident }
+            }
+        }
+    }
+
+    pub fn gen(&self, value: Option<TokenStream>) -> TokenStream {
+        let ident = self.ident();
+        match &self.ty {
+            Some(_) => {
+                let value = value.unwrap();
+                quote! { #ident(#value) }
+            }
+            None => {
+                quote! { #ident }
+            }
+        }
+    }
+}
+
+struct Field {
+    ident: Ident,
+    attr: ProstAttr,
+}
+
 struct NamedStructDeserializer<'a> {
     context: &'a Context,
     meta: &'a DeriveMeta,
     serde: &'a Path,
     deserializer: &'a Ident,
     ident: &'a Ident,
-    fields: &'a FieldsNamed,
+    fields: Vec<Field>,
 }
 
 impl<'a> NamedStructDeserializer<'a> {
@@ -60,34 +117,50 @@ impl<'a> NamedStructDeserializer<'a> {
         deserializer: &'a Ident,
         ident: &'a Ident,
         fields: &'a FieldsNamed,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, ()> {
+        let mut typed_fields = Vec::new();
+
+        for field in fields.named.iter() {
+            let prost_attr = ProstAttr::from_ast(context, &field.attrs)?;
+            typed_fields.push(Field {
+                ident: field.ident.as_ref().unwrap().clone(),
+                attr: prost_attr,
+            })
+        }
+
+        Ok(Self {
             context,
             meta,
             serde,
             deserializer,
             ident,
-            fields,
-        }
+            fields: typed_fields,
+        })
     }
 
     #[inline]
     fn get_field_idents(&self) -> impl Iterator<Item = &Ident> {
-        self.fields.named.iter().map(|v| v.ident.as_ref().unwrap())
+        self.fields.iter().map(|v| &v.ident)
     }
 
     fn expand_field_deserializer_impl(
         &self,
         ident_unknown: Option<&Ident>,
-    ) -> (Ident, TokenStream, Vec<Ident>) {
+    ) -> (Ident, TokenStream, Vec<SingleFieldVariant>) {
         let serde = self.serde;
 
         let mut variants = vec![];
-        variants.extend(
-            self.get_field_idents()
-                .map(|v| format_ident!("{}", v.unraw().to_string().to_case(Case::Pascal))),
-        );
-
+        for field in &self.fields {
+            let ident = format_ident!("{}", field.ident.unraw().to_string().to_case(Case::Pascal));
+            if let ProtobufType::OneOf(_) = field.attr.ty {
+                // keep oneof field name inside
+                let ty_string: Type = parse_quote!(String);
+                variants.push(SingleFieldVariant::new(ident, Some(ty_string)));
+            } else {
+                variants.push(SingleFieldVariant::new(ident, None));
+            }
+        }
+        // TODO: show oneof fields
         let field_names = self
             .get_field_idents()
             .map(|v| format!("`{}`", v))
@@ -96,20 +169,37 @@ impl<'a> NamedStructDeserializer<'a> {
         let ident_enum = format_ident!("Field");
         let ident_visitor = format_ident!("{}Visitor", ident_enum);
 
-        let field_match_arms = iter::zip(
-            self.get_field_idents()
-                .map(IdentExt::unraw)
-                .map(|i| i.to_string())
-                .collect_vec(),
-            variants.iter(),
-        )
-        .map(|(name, variant)| {
-            quote! {
-                #name => Ok(#ident_enum::#variant)
-            }
-        });
+        let mut oneof_field_if_exprs = Vec::new();
+        let mut field_match_arms = Vec::new();
 
-        let (unknown_variant, unknown_match_arm) = if let Some(unknown) = ident_unknown {
+        for (field, variant) in iter::zip(self.fields.iter(), variants.iter()) {
+            if let ProtobufType::OneOf(ref p) = field.attr.ty {
+                let names = quote! { #p::field_names() };
+                let variant_gen = variant.gen(Some(quote! { value.to_string() }));
+                oneof_field_if_exprs.push(quote! {
+                    if #names.contains(&value) {
+                        return Ok(#ident_enum::#variant_gen);
+                    }
+                })
+            } else {
+                let name = field.ident.unraw().to_string();
+                let variant = variant.ident();
+                field_match_arms.push(quote! {
+                    #name => return Ok(#ident_enum::#variant)
+                });
+            }
+        }
+
+        let oneof_field_if_exprs = if oneof_field_if_exprs.len() > 1 {
+            oneof_field_if_exprs
+                .into_iter()
+                .reduce(|acc, i| quote! { #acc else #i})
+                .unwrap()
+        } else {
+            quote! { #(#oneof_field_if_exprs)* }
+        };
+
+        let (unknown_variant, unknown_match) = if let Some(unknown) = ident_unknown {
             (
                 Some(quote! { #unknown, }),
                 quote! { Ok(#ident_enum::#unknown) },
@@ -121,10 +211,12 @@ impl<'a> NamedStructDeserializer<'a> {
             )
         };
 
+        let variant_defs = variants.iter().map(SingleFieldVariant::def);
+
         let expr = quote! {
             enum #ident_enum {
                 #unknown_variant
-                #(#variants),*
+                #(#variant_defs),*
             }
 
             impl<'de> #serde::Deserialize<'de> for #ident_enum {
@@ -138,7 +230,7 @@ impl<'a> NamedStructDeserializer<'a> {
                         type Value = #ident_enum;
 
                         fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                            formatter.write_str(#field_names)
+                            write!(formatter, "{}", #field_names)
                         }
 
                         fn visit_str<E>(self, value: &str) -> Result<#ident_enum, E>
@@ -147,8 +239,12 @@ impl<'a> NamedStructDeserializer<'a> {
                         {
                             match value {
                                 #(#field_match_arms,)*
-                                _ => #unknown_match_arm,
+                                _ => {}
                             }
+
+                            #oneof_field_if_exprs
+
+                            #unknown_match
                         }
                     }
 
@@ -187,28 +283,30 @@ impl<'a> NamedStructDeserializer<'a> {
 
         if self.meta.ignore_unknown_fields {
             var_match_arms.push(quote! {
-                #ident_field_enum::#unknown => { }
+                #ident_field_enum::#unknown => {
+                    map.next_value::<serde_json::Value>()?;
+                }
             });
         }
 
-        for (field, field_variant) in iter::zip(self.fields.named.iter(), field_variants.iter()) {
-            let prost_attr = ProstAttr::from_ast(self.context, &field.attrs)?;
-
-            let ident_field_var = format_ident!("psd_{}", field.ident.as_ref().unwrap().unraw());
-            let ident_field = field.ident.as_ref().unwrap();
+        for (field, field_variant) in iter::zip(self.fields.iter(), field_variants.iter()) {
+            let ident_field_var = format_ident!("psd_{}", field.ident.unraw());
+            let ident_field = &field.ident;
             let field_name = ident_field.to_string();
             var_decls.push(quote! { let mut #ident_field_var = None; });
 
             let FieldVisitorTokenStream {
                 value_getter_expr,
                 narrowing_expr,
-            } = field_visitor_token_generator.expand(&prost_attr, &field_name, &ident_field_var);
+            } = field_visitor_token_generator.expand(&field.attr, &field_name, &ident_field_var)?;
 
+            let field_variant_pat = field_variant.pat();
             var_match_arms.push(quote! {
-                #ident_field_enum::#field_variant => {
+                #ident_field_enum::#field_variant_pat => {
                     if #ident_field_var.is_some() {
                         return Err(#serde::de::Error::duplicate_field(#field_name));
                     }
+
                     #ident_field_var = #value_getter_expr;
                 }
             });

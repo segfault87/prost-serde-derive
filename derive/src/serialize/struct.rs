@@ -10,12 +10,13 @@ pub fn expand_struct(
     context: &Context,
     _meta: &DeriveMeta,
     serde: &Path,
+    serializer: &Ident,
     ident: &Ident,
     data: &DataStruct,
 ) -> Result<TokenStream, ()> {
     match &data.fields {
         Fields::Named(f) => {
-            let ident_name = ident.to_string();
+            let name = ident.to_string();
             let fields = f
                 .named
                 .iter()
@@ -25,7 +26,7 @@ pub fn expand_struct(
             Ok(quote! {
                 use #serde::ser::SerializeStruct;
 
-                let mut state = serializer.serialize_struct(#ident_name, #count)?;
+                let mut state = #serializer.serialize_struct(#name, #count)?;
                 #(#fields)*
                 state.end()
             })

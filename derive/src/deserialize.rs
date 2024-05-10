@@ -3,12 +3,12 @@ mod field;
 mod r#struct;
 
 use proc_macro2::TokenStream;
-use quote::quote;
-use syn::{parse_quote, Data, DeriveInput, Error, Ident, Path};
+use quote::{format_ident, quote};
+use syn::{parse_quote, Data, DeriveInput, Error, Path};
 
-use self::r#enum::expand_enum;
+use self::r#enum::{expand_enum, expand_oneof_field_names_method};
 use self::r#struct::expand_struct;
-use crate::attr::DeriveMeta;
+use crate::attr::{DeriveMeta, ProstType};
 use crate::context::Context;
 use crate::util::wrap_block;
 
@@ -24,11 +24,33 @@ pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>>
     let data = &input.data;
 
     let serde: Path = parse_quote! { _serde };
-    let deserializer: Ident = parse_quote! { deserializer };
+    let deserializer = format_ident!("deserializer");
 
     let Ok(deserialization_block) = (match data {
-        Data::Struct(d) => expand_struct(&context, &derive_meta, &serde, &deserializer, ident, d),
-        Data::Enum(_) => expand_enum(&serde, &deserializer, ident),
+        Data::Struct(d) => {
+            if derive_meta.prost_type == ProstType::Message {
+                expand_struct(&context, &derive_meta, &serde, &deserializer, ident, d)
+            } else {
+                context.push_error_spanned_by(
+                    d.struct_token,
+                    "Struct type is only available for `::prost::Message`.",
+                );
+                Err(())
+            }
+        }
+        Data::Enum(d) => {
+            if derive_meta.prost_type == ProstType::Enum
+                || derive_meta.prost_type == ProstType::Oneof
+            {
+                expand_enum(&context, &derive_meta, &serde, &deserializer, ident, d)
+            } else {
+                context.push_error_spanned_by(
+                    d.enum_token,
+                    "Enum type is only available for `::prost::Enumeration` or `::prost::Oneof`.",
+                );
+                Err(())
+            }
+        }
         Data::Union(d) => {
             context.push_error_spanned_by(
                 d.union_token,
@@ -41,6 +63,8 @@ pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>>
         unreachable!();
     };
 
+    let oneof_field_names_method = expand_oneof_field_names_method(&derive_meta, ident, data);
+
     let impl_body = quote! {
         extern crate serde as _serde;
 
@@ -50,8 +74,9 @@ pub fn expand_deserialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>>
             {
                 #deserialization_block
             }
-
         }
+
+        #oneof_field_names_method
     };
 
     Ok(wrap_block(impl_body))

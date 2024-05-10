@@ -43,6 +43,26 @@ fn main() {
         .type_attribute(
             "message.PostCode",
             "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "oneof.Oneof",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "oneof.Oneof.animal",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "oneof.Cat",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "oneof.Dog",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "oneof.Wolf",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
         );
 
     builder
@@ -55,6 +75,7 @@ fn main() {
                 "proto/repeated.proto",
                 "proto/enums.proto",
                 "proto/message.proto",
+                "proto/oneof.proto",
             ],
             &["proto"],
         )
