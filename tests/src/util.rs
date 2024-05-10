@@ -20,8 +20,8 @@ pub fn drop_null(json: &str) -> String {
     serde_json::to_string(&value).unwrap()
 }
 
-pub fn round_trip_from_json<'de, T: Serialize + DeserializeOwned>(
-    json: &'de str,
+pub fn round_trip_from_json<T: Serialize + DeserializeOwned>(
+    json: &str,
     is_drop_null: bool,
 ) -> String {
     let mut json = json.to_string();
@@ -32,13 +32,13 @@ pub fn round_trip_from_json<'de, T: Serialize + DeserializeOwned>(
     let result =
         serde_json::to_string(&serde_json::from_reader::<_, T>(json.as_bytes()).unwrap()).unwrap();
     if is_drop_null {
-        return drop_null(&result);
+        drop_null(&result)
     } else {
-        return result;
+        result
     }
 }
 
-pub fn round_trip_from_message<'de, T: Serialize + DeserializeOwned>(
+pub fn round_trip_from_message<T: Serialize + DeserializeOwned>(
     message: T,
     is_drop_null: bool,
 ) -> T {

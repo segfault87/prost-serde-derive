@@ -153,7 +153,7 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     path,
                     "oneof should not have modifier(optional, repeated)",
                 ));
-                return Err(());
+                Err(())
             }
             _ => Ok(self.value_getter(
                 Some(quote! { Vec<_> }),
@@ -203,7 +203,7 @@ impl<'a> FieldVisitorTokenGenerator<'a> {
                     path,
                     "oneof should not have modifier(optional, repeated)",
                 ));
-                return Err(());
+                Err(())
             }
             _ => Ok(self.value_getter(None, quote! { value }, default_value)),
         }

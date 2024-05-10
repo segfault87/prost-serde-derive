@@ -63,7 +63,7 @@ pub fn expand_serialize(input: DeriveInput) -> Result<TokenStream, Vec<Error>> {
         unreachable!();
     };
 
-    let oneof_field_name_method = expand_oneof_field_name_method(&derive_meta, &ident, &data);
+    let oneof_field_name_method = expand_oneof_field_name_method(&derive_meta, ident, data);
 
     let impl_body = quote! {
         extern crate serde as _serde;
