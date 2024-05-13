@@ -1,11 +1,10 @@
-#[macro_use]
-extern crate quote;
-
 mod attr;
 mod context;
 mod deserialize;
 mod serialize;
 mod util;
+
+use quote::quote;
 
 use crate::{deserialize::expand_deserialize, serialize::expand_serialize};
 

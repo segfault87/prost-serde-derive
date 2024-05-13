@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package enums;
+
+enum Language {
+    LANGUAGE_UNKNOWN = 0;
+    LANGUAGE_ENGLISH = 1;
+    LANGUAGE_FRENCH = 2;
+    LANGUAGE_SPANISH = 3;
+}
+
+enum Notification {
+    NOTIFICATION_UNKNOWN = 0;
+    NOTIFICATION_EMAIL = 1;
+    NOTIFICATION_SMS = 2;
+    NOTIFICATION_PUSH = 3;
+}
+
+message Enum {
+    Language language = 1;
+    optional Notification notification = 2;
+    optional Notification sub_notification = 3;
+}

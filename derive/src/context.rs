@@ -1,4 +1,6 @@
-use std::{cell::RefCell, fmt::Display, thread};
+use std::cell::RefCell;
+use std::fmt::Display;
+use std::thread;
 
 use quote::ToTokens;
 
@@ -14,7 +16,7 @@ impl Context {
         }
     }
 
-    pub fn error_spanned_by<A: ToTokens, T: Display>(&self, obj: A, msg: T) {
+    pub fn push_error_spanned_by<A: ToTokens, T: Display>(&self, obj: A, msg: T) {
         self.errors
             .borrow_mut()
             .as_mut()
@@ -22,7 +24,7 @@ impl Context {
             .push(syn::Error::new_spanned(obj.into_token_stream(), msg));
     }
 
-    pub fn syn_error(&self, err: syn::Error) {
+    pub fn push_syn_error(&self, err: syn::Error) {
         self.errors.borrow_mut().as_mut().unwrap().push(err);
     }
 
@@ -37,7 +39,7 @@ impl Context {
 
 impl Drop for Context {
     fn drop(&mut self) {
-        if !thread::panicking() && self.errors.borrow().is_some() {
+        if !thread::panicking() && self.errors.borrow().as_ref().is_some_and(|e| !e.is_empty()) {
             panic!("forgot to check for errors");
         }
     }

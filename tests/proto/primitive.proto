@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package primitive;
+
+message Primitive {
+    int32 id = 1;
+    int64 timestamp = 2;
+    string name = 3;
+    bytes hashed_password = 4;
+    bool is_active = 5;
+}

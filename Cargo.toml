@@ -1,5 +1,6 @@
 [workspace]
 members = [
 	"derive",
-	"example",
+	"tests",
 ]
+resolver = "2"

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package oneof;
+
+message Oneof {
+    oneof animal {
+        Cat cat = 1;
+        Dog dog = 2;
+        Wolf wolf = 3;
+    }
+    optional bool is_wild = 4;
+    optional int32 age = 5;
+}
+
+message Cat {
+    string name = 1;
+    string color = 2;
+}
+
+message Dog {
+    string name = 1;
+    string breed = 2;
+}
+
+message Wolf {
+    string name = 1;
+}

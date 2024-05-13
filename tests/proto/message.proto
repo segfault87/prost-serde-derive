@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package message;
+
+message Message {
+    Address address = 1;
+    optional PostCode post_code = 2;
+}
+
+message Address {
+    optional string street = 1;
+    optional string city = 2;
+    string state = 3;
+}
+
+message PostCode {
+    string code = 1;
+}
