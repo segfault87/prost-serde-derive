@@ -63,6 +63,14 @@ fn main() {
         .type_attribute(
             "oneof.Wolf",
             "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "options.Message",
+            "#[derive(prost_serde_derive::Deserialize, prost_serde_derive::Serialize)]",
+        )
+        .type_attribute(
+            "options.Message",
+            "#[prost_serde_derive(omit_type_errors, use_default_for_missing_fields, ignore_unknown_fields)]",
         );
 
     builder
@@ -76,6 +84,7 @@ fn main() {
                 "proto/enums.proto",
                 "proto/message.proto",
                 "proto/oneof.proto",
+                "proto/options.proto",
             ],
             &["proto"],
         )

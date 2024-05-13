@@ -1,7 +1,6 @@
 use pretty_assertions::assert_eq;
 use tests::proto::message;
 use tests::serde_test;
-use tests::util::{round_trip_from_json, round_trip_from_message};
 
 const JSON: &str = r#"{"address":{"street":null,"city":"city","state":"state"},"post_code":null}"#;
 

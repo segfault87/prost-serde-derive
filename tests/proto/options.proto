@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package options;
+
+message Message {
+    string address = 1;
+    optional int32 post_code = 2;
+    bool is_valid = 3;
+}

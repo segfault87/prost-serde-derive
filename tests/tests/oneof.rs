@@ -1,7 +1,6 @@
 use pretty_assertions::assert_eq;
 use tests::proto::oneof;
 use tests::serde_test;
-use tests::util::{round_trip_from_json, round_trip_from_message};
 
 const JSON: &str = r#"{"is_wild":true,"age":null,"cat":{"name":"name","color":"color"}}"#;
 

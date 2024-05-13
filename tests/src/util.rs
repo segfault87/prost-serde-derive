@@ -65,21 +65,30 @@ macro_rules! serde_test {
 
         #[test]
         fn round_trip() {
-            assert_eq!(round_trip_from_json::<$ty>($json, false), $json);
+            assert_eq!(
+                tests::util::round_trip_from_json::<$ty>($json, false),
+                $json
+            );
 
             let mesage = $value;
-            assert_eq!(round_trip_from_message(mesage.clone(), false), mesage);
+            assert_eq!(
+                tests::util::round_trip_from_message(mesage.clone(), false),
+                mesage
+            );
         }
 
         #[test]
         fn round_trip_drop_null() {
             assert_eq!(
-                round_trip_from_json::<$ty>($json, true),
+                tests::util::round_trip_from_json::<$ty>($json, true),
                 tests::util::drop_null($json)
             );
 
             let mesage = $value;
-            assert_eq!(round_trip_from_message(mesage.clone(), true), mesage);
+            assert_eq!(
+                tests::util::round_trip_from_message(mesage.clone(), true),
+                mesage
+            );
         }
     };
 }
